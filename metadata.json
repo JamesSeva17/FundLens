@@ -1,0 +1,5 @@
+{
+  "name": "FundLens",
+  "description": "A comprehensive personal net-worth and investment dashboard for Philippine users, tracking bank balances, stocks (COL Financial), and crypto (Coins.ph, Bybit) with Gemini-powered live price fetching.",
+  "requestFramePermissions": []
+}
