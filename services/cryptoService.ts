@@ -70,7 +70,7 @@ export async function fetchCryptoPrice(symbol: string): Promise<PriceResponse | 
 
       const res = await fetch(`${COINGECKO_BASE}/simple/price?ids=${coinId}&vs_currencies=php`);
       if (!res.ok) throw new Error("CoinGecko API Error");
-      
+
       const data = await res.json();
       const price = data[coinId]?.php;
 
