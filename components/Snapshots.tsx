@@ -233,7 +233,7 @@ const Snapshots: React.FC<SnapshotsProps> = ({ data, updateData }) => {
                   type="text" placeholder="BALANCE"
                   value={newPlatform.balance}
                   onChange={e => setNewPlatform({...newPlatform, balance: formatCurrency(e.target.value)})}
-                  className="w-full md:w-32 bg-transparent text-black border-b border-gray-200 p-2 text-sm font-black focus:border-indigo-500 outline-none transition-all placeholder:text-gray-300"
+                  className="w-full md:w-32 bg-transparent text-black border-b border-gray-100 p-2 text-sm font-black focus:border-indigo-500 outline-none transition-all placeholder:text-gray-300"
                 />
                 <button 
                   onClick={addPlatformToSnap}
@@ -260,7 +260,7 @@ const Snapshots: React.FC<SnapshotsProps> = ({ data, updateData }) => {
       {/* Main List */}
       <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
         <div className="grid grid-cols-3 bg-gray-50/40 border-b border-gray-100 px-4 py-4 md:px-8">
-          <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Wallet</div>
+          <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Wallet Name</div>
           <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">MoM Perf</div>
           <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Balance</div>
         </div>
@@ -269,7 +269,7 @@ const Snapshots: React.FC<SnapshotsProps> = ({ data, updateData }) => {
           {itemSummaries.length === 0 ? (
             <div className="px-6 py-20 text-center text-gray-300 font-black text-xs uppercase tracking-widest flex flex-col items-center gap-4">
               <i className="fas fa-receipt text-4xl opacity-20"></i>
-              No savings data logged yet.
+              No wallet data logged yet.
             </div>
           ) : (
             itemSummaries.map(item => {
@@ -330,7 +330,7 @@ const Snapshots: React.FC<SnapshotsProps> = ({ data, updateData }) => {
                         </div>
                         <div className="bg-white p-3.5 rounded-2xl shadow-sm border border-indigo-50 col-span-2 flex justify-between items-center">
                           <div className="flex flex-col">
-                            <p className="text-[8px] font-black text-indigo-300 uppercase mb-1">Asset Lifetime</p>
+                            <p className="text-[8px] font-black text-indigo-300 uppercase mb-1">Wallet Lifetime</p>
                             <p className="text-[10px] font-bold text-gray-500 leading-none">
                               First logged in {item.capitalDate}
                             </p>

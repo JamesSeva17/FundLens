@@ -142,7 +142,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ data, prices, updateData, setPric
                 required 
                 list="ticker-suggestions"
                 value={formData.ticker} 
-                onChange={e => setFormData({...formData, ticker: e.target.value})} 
+                onChange={e => setFormData({...formData, ticker: e.target.value.toUpperCase()})} 
                 placeholder="BTC or AC" 
                 className="w-full bg-transparent text-black border-b border-gray-100 p-2 font-bold focus:border-indigo-500 outline-none text-sm uppercase" 
               />

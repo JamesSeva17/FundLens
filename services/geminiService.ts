@@ -66,6 +66,7 @@ export async function getPortfolioInsights(
   `;
 
   try {
+    // Default to gemini-3-pro-preview as per instructions for complex text tasks
     const modelToUse = data.geminiModel || 'gemini-3-pro-preview';
     
     // Pro models benefit from more thinking tokens for deep financial analysis
@@ -98,6 +99,6 @@ export async function getPortfolioInsights(
       throw new Error("API_KEY_ERROR");
     }
     
-    throw new Error("The fund manager is currently busy. Please check your connection or environment key configuration.");
+    throw new Error("The fund manager is currently busy. Please check your connection or model settings.");
   }
 }
