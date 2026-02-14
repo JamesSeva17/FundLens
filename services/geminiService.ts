@@ -3,23 +3,20 @@ import { GoogleGenAI } from "@google/genai";
 import { AppData, PriceResponse } from "../types";
 
 export const getGeminiClient = () => {
+  // Always create a new instance to ensure it picks up the latest key injected by the platform
   return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
-export interface PortfolioInsight {
-  analysis: string;
-  timestamp: string;
-}
-
 /**
- * Analyzes the user's portfolio as a senior fund manager.
- * Uses thinking capabilities and Google Search for market context.
+ * Interacts with the portfolio as a fund manager based on user queries.
+ * Updated to return grounding sources for Google Search compliance.
  */
 export async function getPortfolioInsights(
   data: AppData,
   prices: Record<string, PriceResponse>,
-  totalNetWorth: number
-): Promise<string> {
+  totalNetWorth: number,
+  userQuery?: string
+): Promise<{ text: string; sources?: { title: string; uri: string }[] }> {
   const ai = getGeminiClient();
 
   // Prepare a concise summary for the AI
@@ -35,48 +32,54 @@ export async function getPortfolioInsights(
       ticker: asset.ticker,
       type: asset.type,
       platform: asset.platform,
+      marketValue: `PHP ${marketValue.toLocaleString()}`,
       gainLossPct: gainLossPct.toFixed(2) + '%',
       allocation: allocation.toFixed(2) + '%'
     };
   });
 
-  const prompt = `
-    You are a world-class Senior Fund Manager and Financial Strategist specializing in both the Philippine Stock Exchange (PSE) and global Cryptocurrency markets.
+  const basePrompt = `
+    You are a world-class Senior Fund Manager and Financial Strategist specializing in the Philippine Stock Exchange (PSE) and global Cryptocurrency markets.
     
-    Current Portfolio Context:
+    Portfolio Snapshot:
     - Total Net Worth: PHP ${totalNetWorth.toLocaleString()}
-    - Asset Breakdown: ${JSON.stringify(assetSummary)}
+    - Assets: ${JSON.stringify(assetSummary)}
     
-    Task:
-    Provide a professional, strategic analysis of this portfolio. 
-    1. Cross-reference these holdings with current market trends in the Philippines and global macro conditions.
-    2. Evaluate asset allocation and diversification.
-    3. Identify potential risks (e.g., overexposure to specific sectors or volatile assets).
-    4. Provide actionable "Fund Manager Insights" for the next quarter.
+    User Query: ${userQuery || "Provide a general strategic review of my portfolio and market outlook."}
     
-    Constraint:
-    - Keep the tone sophisticated, objective, and authoritative.
-    - Be concise (max 350 words).
-    - Use bullet points for readability.
-    - Focus on performance and strategy.
-    - Do NOT include a disclaimer about not being a financial advisor.
+    Guidelines:
+    1. Respond as a professional advisor. Use data-driven insights.
+    2. Reference current market trends (PSEi, Bitcoin price action, PH inflation) where relevant.
+    3. Be concise and authoritative.
+    4. Format with clean bullet points.
+    5. Do NOT include generic disclaimers.
   `;
 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
-      contents: prompt,
+      contents: basePrompt,
       config: {
         tools: [{ googleSearch: {} }],
-        // For gemini-3-pro-preview, we must provide a valid budget or let it default.
-        // We set a 2k budget to allow for sophisticated "thinking" about the portfolio.
         thinkingConfig: { thinkingBudget: 2048 } 
       }
     });
 
-    return response.text || "Unable to generate analysis at this time.";
+    const text = response.text || "I was unable to analyze the data. Please try again with a more specific query.";
+    
+    // GUIDELINE: Always extract website URLs from groundingChunks when using googleSearch
+    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+    const sources = groundingChunks?.filter((c: any) => c.web).map((c: any) => ({
+      title: c.web.title,
+      uri: c.web.uri
+    }));
+
+    return { text, sources };
   } catch (error) {
-    console.error("Gemini Analysis Error:", error);
-    throw new Error("Failed to reach the fund manager.");
+    console.error("Gemini Interaction Error:", error);
+    if (error instanceof Error && error.message.includes("Requested entity was not found")) {
+      throw new Error("API_KEY_ERROR");
+    }
+    throw new Error("The fund manager is currently unavailable. Check your connection or API key.");
   }
 }

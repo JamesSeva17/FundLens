@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AppData, Asset, PriceResponse } from './types';
 import { loadLocal, saveToLocal, loadFromCloud } from './services/storageService';
-import { getPortfolioInsights } from './services/geminiService';
 import { getPriceForAsset } from './services/priceService';
 import Dashboard from './components/Dashboard';
 import Portfolio from './components/Portfolio';
@@ -14,8 +13,6 @@ const App: React.FC = () => {
   const [data, setData] = useState<AppData>(loadLocal());
   const [prices, setPrices] = useState<Record<string, PriceResponse>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [analysis, setAnalysis] = useState<string | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   useEffect(() => {
     if (data.cloudSyncEnabled && data.jsonBinKey && data.jsonBinId) {
@@ -74,36 +71,23 @@ const App: React.FC = () => {
     return assetsValue + snapshotValue;
   }, [data.assets, data.snapshots, prices]);
 
-  const generateAnalysis = async () => {
-    if (isAnalyzing) return;
-    setIsAnalyzing(true);
-    try {
-      const result = await getPortfolioInsights(data, prices, currentNetWorth);
-      setAnalysis(result);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
-      {/* Mobile Top Branding Bar - Visible only on Mobile */}
+      {/* Mobile Top Branding Bar - Text Only */}
       <div className="md:hidden bg-white border-b border-gray-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm">
         <div>
           <h1 className="text-xl font-black text-indigo-900 leading-none tracking-tight">FundLens</h1>
           <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mt-1">Wealth Tracker</p>
         </div>
-        <div className="bg-indigo-50 p-2 rounded-xl">
+        <div className="bg-indigo-50 p-2.5 rounded-xl">
           <i className="fas fa-chart-line text-indigo-600 text-sm"></i>
         </div>
       </div>
 
       <nav className="w-full md:w-64 bg-indigo-900 text-white flex md:flex-col fixed bottom-0 md:sticky md:top-0 md:h-screen z-50 shrink-0 shadow-[0_-10px_25px_-5px_rgba(0,0,0,0.3)] md:shadow-none border-t border-indigo-800 md:border-t-0">
-        {/* Desktop Branding - Hidden on Mobile */}
-        <div className="p-6 hidden md:block">
-          <h1 className="text-2xl font-bold tracking-tight text-white">FundLens</h1>
+        {/* Desktop Branding - Text Only */}
+        <div className="p-8 hidden md:block">
+          <h1 className="text-2xl font-black tracking-tight text-white">FundLens</h1>
           <p className="text-indigo-300 text-[10px] uppercase font-black tracking-widest mt-1">Wealth Tracker</p>
         </div>
         
@@ -145,17 +129,6 @@ const App: React.FC = () => {
             
             <div className="flex flex-col items-end gap-2">
               <div className="flex gap-2">
-                {activeTab === 'dashboard' && (
-                  <button 
-                    onClick={generateAnalysis}
-                    disabled={isAnalyzing || data.assets.length === 0}
-                    className="bg-indigo-50 border border-indigo-100 text-indigo-700 px-6 py-3 rounded-2xl shadow-sm hover:shadow-md disabled:opacity-50 transition-all text-xs font-black uppercase tracking-widest"
-                  >
-                    <i className={`fas fa-brain mr-2 ${isAnalyzing ? 'animate-pulse' : ''}`}></i>
-                    {isAnalyzing ? 'Analyzing...' : 'Expert Review'}
-                  </button>
-                )}
-                
                 {activeTab === 'portfolio' && (
                   <button 
                     onClick={refreshPrices}
@@ -182,8 +155,6 @@ const App: React.FC = () => {
               data={data} 
               prices={prices} 
               total={currentNetWorth} 
-              analysis={analysis}
-              isAnalyzing={isAnalyzing}
             />
           )}
           {activeTab === 'portfolio' && <Portfolio data={data} prices={prices} updateData={updateData} setPrices={setPrices} />}
