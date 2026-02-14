@@ -1,6 +1,6 @@
 
 import { GoogleGenAI } from "@google/genai";
-import { AppData, PriceResponse } from "../types";
+import { AppData, PriceResponse, MonthlySnapshot } from "../types";
 
 export const getGeminiClient = (userKey?: string) => {
   const apiKey = userKey || process.env.API_KEY;
@@ -12,6 +12,7 @@ export const getGeminiClient = (userKey?: string) => {
 
 /**
  * Interacts with the portfolio as a fund manager based on user queries.
+ * Analyzes current holdings and full historical snapshots.
  */
 export async function getPortfolioInsights(
   data: AppData,
@@ -29,7 +30,12 @@ export async function getPortfolioInsights(
     throw e;
   }
 
-  // 1. Prepare Investment Assets Summary
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const sortedSnaps = [...data.snapshots].sort((a, b) => a.date.localeCompare(b.date));
+  const latestSnap = sortedSnaps[sortedSnaps.length - 1];
+
+  // 1. Prepare Investment Assets Summary (Current State)
   const assetSummary = data.assets.map(asset => {
     const currentPrice = prices[asset.ticker]?.price_php || 0;
     const totalUnits = asset.transactions.reduce((s, t) => s + t.units, 0);
@@ -43,57 +49,87 @@ export async function getPortfolioInsights(
       type: asset.type,
       platform: asset.platform,
       marketValue: `PHP ${marketValue.toLocaleString()}`,
-      gainLossPct: gainLossPct.toFixed(2) + '%',
-      allocation: allocation.toFixed(2) + '%'
+      totalGainLoss: `${gainLossPct >= 0 ? '+' : ''}${gainLossPct.toFixed(2)}%`,
+      allocation: `${allocation.toFixed(2)}%`
     };
   });
 
-  // 2. Prepare Savings (Wallets) Summary
-  // We look at the latest snapshot and compare it to the previous one to find performance
-  const sortedSnapshots = [...data.snapshots].sort((a, b) => b.date.localeCompare(a.date));
-  const latestSnap = sortedSnapshots[0];
-  const prevSnap = sortedSnapshots[1];
-
-  const savingsSummary = latestSnap?.platforms.map(p => {
-    const prevBal = prevSnap?.platforms.find(prevP => prevP.name === p.name)?.balance || 0;
-    const diff = p.balance - prevBal;
-    const pct = prevBal > 0 ? (diff / prevBal) * 100 : 0;
+  // 2. Prepare Yearly Performance Summary (The "Whole History" View)
+  // Group snapshots by year to find start/end balances for historical context
+  const yearsInData = Array.from(new Set(sortedSnaps.map(s => s.date.substring(0, 4)))).sort();
+  const yearlyPerformance = yearsInData.map(year => {
+    const yearSnaps = sortedSnaps.filter(s => s.date.startsWith(year));
+    const startBalance = yearSnaps[0].platforms.reduce((sum, p) => sum + p.balance, 0);
+    const endBalance = yearSnaps[yearSnaps.length - 1].platforms.reduce((sum, p) => sum + p.balance, 0);
+    const growth = endBalance - startBalance;
+    const growthPct = startBalance > 0 ? (growth / startBalance) * 100 : 0;
     
     return {
-      walletName: p.name,
-      currentBalance: `PHP ${p.balance.toLocaleString()}`,
-      performanceMoM: `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`,
-      nominalChange: `PHP ${diff.toLocaleString()}`
+      year,
+      startingNetWorth: `PHP ${startBalance.toLocaleString()}`,
+      endingNetWorth: `PHP ${endBalance.toLocaleString()}`,
+      annualGrowth: `${growthPct >= 0 ? '+' : ''}${growthPct.toFixed(2)}%`,
+      dataPoints: yearSnaps.length
     };
-  }) || [];
+  });
+
+  // 3. Individual Wallet Lifetime Performance
+  const uniqueWalletNames = Array.from(new Set(data.snapshots.flatMap(s => s.platforms.map(p => p.name))));
+  const walletHistory = uniqueWalletNames.map(name => {
+    const history = sortedSnaps
+      .map(s => ({ date: s.date, balance: s.platforms.find(p => p.name === name)?.balance }))
+      .filter(h => h.balance !== undefined) as { date: string, balance: number }[];
+    
+    const inception = history[0];
+    const current = history[history.length - 1];
+    const lifetimeGrowth = current.balance - inception.balance;
+    const lifetimePct = inception.balance > 0 ? (lifetimeGrowth / inception.balance) * 100 : 0;
+
+    // Latest month performance
+    const prev = history.length > 1 ? history[history.length - 2] : null;
+    const momPct = prev && prev.balance > 0 ? ((current.balance - prev.balance) / prev.balance) * 100 : 0;
+
+    return {
+      name,
+      currentBalance: `PHP ${current.balance.toLocaleString()}`,
+      inceptionDate: inception.date,
+      inceptionBalance: `PHP ${inception.balance.toLocaleString()}`,
+      lifetimeGrowth: `${lifetimePct >= 0 ? '+' : ''}${lifetimePct.toFixed(2)}%`,
+      lastMonthGrowth: prev ? `${momPct >= 0 ? '+' : ''}${momPct.toFixed(2)}%` : 'N/A'
+    };
+  });
 
   const basePrompt = `
-    You are a world-class Senior Fund Manager and Financial Strategist specializing in the Philippine Stock Exchange (PSE) and global Cryptocurrency markets.
+    You are a world-class Senior Fund Manager and Wealth Strategist. 
+    Analyze the user's FULL financial history and current holdings to provide deep insights.
     
-    User Financial Data:
-    - Total Net Worth: PHP ${totalNetWorth.toLocaleString()}
+    CURRENT NET WORTH: PHP ${totalNetWorth.toLocaleString()}
+
+    1. YEARLY PERFORMANCE TIMELINE:
+    ${JSON.stringify(yearlyPerformance, null, 2)}
     
-    1. Investment Portfolio (Stocks/Crypto):
+    2. INDIVIDUAL WALLET HISTORY & LIFETIME ACCRUED:
+    ${JSON.stringify(walletHistory, null, 2)}
+
+    3. CURRENT INVESTMENT PORTFOLIO (STOCKS/CRYPTO):
     ${JSON.stringify(assetSummary, null, 2)}
     
-    2. Savings Breakdown (Banks/Wallets/Cash):
-    ${JSON.stringify(savingsSummary, null, 2)}
+    USER QUERY: ${userQuery || "Perform a comprehensive historical analysis and identify my most successful assets over time."}
     
-    User Query: ${userQuery || "Provide a general strategic review of my portfolio and market outlook."}
-    
-    Guidelines:
-    1. Respond as a professional advisor. Use data-driven insights based specifically on the User Financial Data provided above.
-    2. If the user asks about "best performers", look at the "performanceMoM" field for Savings or "gainLossPct" for Investments.
-    3. Reference current market trends (PSEi, Bitcoin price action, PH inflation) where relevant using your search tools.
-    4. Be concise, authoritative, and helpful.
-    5. Format with clean bullet points.
-    6. Do NOT include generic disclaimers.
+    STRATEGIC INSTRUCTIONS:
+    - When asked about "the whole year", "last year", or "history", use the YEARLY PERFORMANCE TIMELINE.
+    - Identify which year had the highest growth.
+    - When identifying "top performers", look at 'lifetimeGrowth' for long-term or 'lastMonthGrowth' for short-term.
+    - Use your Google Search tool to check current market conditions (PSEi, Bitcoin, PH Inflation) to explain WHY certain assets might be performing this way.
+    - Be authoritative. If a user is losing money in one area but gaining in another, highlight the diversification benefit.
+    - Format with professional markdown: use headings, bold text, and bullet points.
+    - Do NOT mention that you are an AI or give generic financial advice disclaimers.
   `;
 
   try {
     const modelToUse = data.geminiModel || 'gemini-3-pro-preview';
     const isPro = modelToUse.includes('pro');
-    const budget = isPro ? 4096 : 1024;
+    const budget = isPro ? 32768 : 8192; // Higher budget for complex history
 
     const response = await ai.models.generateContent({
       model: modelToUse,
@@ -104,10 +140,8 @@ export async function getPortfolioInsights(
       }
     });
 
-    const text = response.text || "I was unable to analyze the data. Please try again with a more specific query.";
-    
-    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-    const sources = groundingChunks?.filter((c: any) => c.web).map((c: any) => ({
+    const text = response.text || "History analysis failed. Please ensure you have snapshots logged.";
+    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks?.filter((c: any) => c.web).map((c: any) => ({
       title: c.web.title,
       uri: c.web.uri
     }));
@@ -115,10 +149,6 @@ export async function getPortfolioInsights(
     return { text, sources };
   } catch (error: any) {
     console.error("Gemini Interaction Error:", error);
-    const errMsg = error?.message || "";
-    if (errMsg.includes("Requested entity was not found") || errMsg.includes("API key not valid") || errMsg.includes("403")) {
-      throw new Error("API_KEY_ERROR");
-    }
-    throw new Error("The fund manager is currently busy. Please check your connection or model settings.");
+    throw new Error("API_ERROR");
   }
 }
