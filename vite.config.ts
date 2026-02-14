@@ -9,6 +9,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    minify: 'terser',
+    // Removed minify: 'terser' to fix the build error.
+    // Vite uses esbuild by default which is already included.
   },
 });
