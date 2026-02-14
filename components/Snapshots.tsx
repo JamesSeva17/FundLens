@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { AppData, MonthlySnapshot, SnapshotPlatform } from '../types';
 
 interface SnapshotsProps {
@@ -11,8 +11,7 @@ const Snapshots: React.FC<SnapshotsProps> = ({ data, updateData }) => {
   const [showAdd, setShowAdd] = useState(false);
   const [expandedInstitution, setExpandedInstitution] = useState<string | null>(null);
   
-  // Date Selection State: Separated into Month and Year for maximum stability and compatibility
-  const currentMonth = new Date().getMonth(); // 0-11
+  const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [selectedYear, setSelectedYear] = useState(currentYear);
@@ -37,6 +36,16 @@ const Snapshots: React.FC<SnapshotsProps> = ({ data, updateData }) => {
 
   const targetDateKey = `${selectedYear}-${(selectedMonth + 1).toString().padStart(2, '0')}`;
 
+  // SYNC: Pre-populate the form with existing data for the selected month/year
+  useEffect(() => {
+    if (showAdd) {
+      const existing = data.snapshots.find(s => s.date === targetDateKey);
+      setFormData({
+        platforms: existing ? [...existing.platforms] : []
+      });
+    }
+  }, [targetDateKey, showAdd, data.snapshots]);
+
   const getBgColor = (name: string) => {
     const colors = [
       'bg-blue-600', 'bg-indigo-600', 'bg-slate-700', 'bg-teal-600',
@@ -48,6 +57,15 @@ const Snapshots: React.FC<SnapshotsProps> = ({ data, updateData }) => {
       hash = name.charCodeAt(i) + ((hash << 5) - hash);
     }
     return colors[Math.abs(hash) % colors.length];
+  };
+
+  const formatCurrency = (val: string) => {
+    let numeric = val.replace(/[^0-9.]/g, '');
+    const split = numeric.split('.');
+    if (split.length > 2) numeric = split[0] + '.' + split[1];
+    const [integer, decimal] = numeric.split('.');
+    const formattedInteger = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return decimal !== undefined ? `${formattedInteger}.${decimal}` : formattedInteger;
   };
 
   const addSnapshot = () => {
@@ -75,16 +93,31 @@ const Snapshots: React.FC<SnapshotsProps> = ({ data, updateData }) => {
   };
 
   const addPlatformToSnap = () => {
-    if (!newPlatform.name || !newPlatform.balance) return;
-    setFormData({
-      ...formData,
-      platforms: [...formData.platforms, { 
-        name: newPlatform.name.toUpperCase().trim(), 
-        balance: parseFloat(newPlatform.balance) 
-      }]
-    });
+    const cleanName = newPlatform.name.toUpperCase().trim();
+    if (!cleanName || !newPlatform.balance) return;
+    
+    const numericBalance = parseFloat(newPlatform.balance.replace(/,/g, ''));
+    
+    // If the name already exists in the current form, update it instead of adding a new row
+    const existingIndex = formData.platforms.findIndex(p => p.name === cleanName);
+    
+    if (existingIndex >= 0) {
+      const updatedPlatforms = [...formData.platforms];
+      updatedPlatforms[existingIndex] = { ...updatedPlatforms[existingIndex], balance: numericBalance };
+      setFormData({ ...formData, platforms: updatedPlatforms });
+    } else {
+      setFormData({
+        ...formData,
+        platforms: [...formData.platforms, { name: cleanName, balance: numericBalance }]
+      });
+    }
     setNewPlatform({ name: '', balance: '' });
   };
+
+  const existingInstitutions = useMemo(() => {
+    const names = data.snapshots.flatMap(s => s.platforms.map(p => p.name));
+    return Array.from(new Set(names)).sort();
+  }, [data.snapshots]);
 
   const itemSummaries = useMemo(() => {
     const sortedSnapshots = [...data.snapshots].sort((a, b) => a.date.localeCompare(b.date));
@@ -125,7 +158,7 @@ const Snapshots: React.FC<SnapshotsProps> = ({ data, updateData }) => {
   return (
     <div className="space-y-4 max-w-full overflow-hidden">
       <div className="flex justify-between items-center px-1">
-        <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Savings Positions</h3>
+        <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Savings Breakdown</h3>
         <button 
           onClick={() => setShowAdd(!showAdd)}
           className="bg-indigo-600 text-white px-5 py-2 rounded-xl font-black text-xs hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
@@ -158,7 +191,9 @@ const Snapshots: React.FC<SnapshotsProps> = ({ data, updateData }) => {
 
           <div className="space-y-4 mb-8">
             <div className="flex items-center justify-between px-1">
-              <h4 className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Logged Balances</h4>
+              <h4 className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                {formData.platforms.length > 0 ? `Logged for ${months[selectedMonth]} ${selectedYear}` : 'No records for this period'}
+              </h4>
               {formData.platforms.length > 0 && <span className="text-[9px] font-black text-indigo-400">{formData.platforms.length} items</span>}
             </div>
             
@@ -182,17 +217,22 @@ const Snapshots: React.FC<SnapshotsProps> = ({ data, updateData }) => {
             <div className="flex flex-col md:flex-row gap-3 p-4 border-2 border-dashed border-gray-100 rounded-2xl bg-gray-50/30">
               <div className="flex-1 relative">
                 <input 
-                  type="text" placeholder="INSTITUTION NAME" 
+                  type="text" 
+                  placeholder="WALLET NAME" 
+                  list="institution-suggestions"
                   value={newPlatform.name}
                   onChange={e => setNewPlatform({...newPlatform, name: e.target.value.toUpperCase()})}
                   className="w-full bg-transparent text-black border-b border-gray-200 p-2 text-sm font-black focus:border-indigo-500 outline-none transition-all placeholder:text-gray-300 uppercase"
                 />
+                <datalist id="institution-suggestions">
+                  {existingInstitutions.map(inst => <option key={inst} value={inst} />)}
+                </datalist>
               </div>
               <div className="flex gap-2">
                 <input 
-                  type="number" placeholder="BALANCE"
+                  type="text" placeholder="BALANCE"
                   value={newPlatform.balance}
-                  onChange={e => setNewPlatform({...newPlatform, balance: e.target.value})}
+                  onChange={e => setNewPlatform({...newPlatform, balance: formatCurrency(e.target.value)})}
                   className="w-full md:w-32 bg-transparent text-black border-b border-gray-200 p-2 text-sm font-black focus:border-indigo-500 outline-none transition-all placeholder:text-gray-300"
                 />
                 <button 
@@ -209,8 +249,7 @@ const Snapshots: React.FC<SnapshotsProps> = ({ data, updateData }) => {
             <button onClick={() => setShowAdd(false)} className="px-4 py-2 text-gray-400 font-bold text-xs uppercase tracking-widest">Cancel</button>
             <button 
               onClick={addSnapshot}
-              disabled={formData.platforms.length === 0}
-              className="bg-indigo-900 text-white px-8 py-2.5 rounded-2xl font-black text-xs uppercase tracking-widest disabled:opacity-50 shadow-xl shadow-indigo-100 hover:bg-indigo-800 transition-colors active:scale-[0.98]"
+              className="bg-indigo-900 text-white px-8 py-2.5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-800 transition-colors active:scale-[0.98]"
             >
               Commit Snapshot
             </button>
@@ -218,10 +257,10 @@ const Snapshots: React.FC<SnapshotsProps> = ({ data, updateData }) => {
         </div>
       )}
 
-      {/* Main List - Mirrors Portfolio asset rows */}
+      {/* Main List */}
       <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
         <div className="grid grid-cols-3 bg-gray-50/40 border-b border-gray-100 px-4 py-4 md:px-8">
-          <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Institution</div>
+          <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Wallet</div>
           <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">MoM Perf</div>
           <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Balance</div>
         </div>

@@ -66,12 +66,18 @@ export async function getPortfolioInsights(
   `;
 
   try {
+    const modelToUse = data.geminiModel || 'gemini-3-pro-preview';
+    
+    // Pro models benefit from more thinking tokens for deep financial analysis
+    const isPro = modelToUse.includes('pro');
+    const budget = isPro ? 4096 : 1024;
+
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: modelToUse,
       contents: basePrompt,
       config: {
         tools: [{ googleSearch: {} }],
-        thinkingConfig: { thinkingBudget: 2048 } 
+        thinkingConfig: { thinkingBudget: budget } 
       }
     });
 

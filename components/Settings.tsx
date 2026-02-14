@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AppData } from '../types';
+import { createBin } from '../services/storageService';
 
 interface SettingsProps {
   data: AppData;
@@ -9,24 +10,53 @@ interface SettingsProps {
 
 const Settings: React.FC<SettingsProps> = ({ data, updateData }) => {
   const [isAiReady, setIsAiReady] = useState(false);
+  const [isGeneratingBin, setIsGeneratingBin] = useState(false);
 
   useEffect(() => {
-    // Check if the API key is available in either AppData or environment
     const apiKey = data.geminiApiKey || process.env.API_KEY;
     setIsAiReady(!!apiKey && apiKey !== 'undefined');
   }, [data.geminiApiKey]);
 
+  const handleGenerateBin = async () => {
+    if (!data.jsonBinKey) {
+      alert("Please enter a JSONBin Master Key first.");
+      return;
+    }
+    setIsGeneratingBin(true);
+    try {
+      const binId = await createBin(data.jsonBinKey, data);
+      if (binId) {
+        updateData({ jsonBinId: binId, cloudSyncEnabled: true });
+        alert("New Cloud Bin successfully created and linked!");
+      } else {
+        alert("Failed to create Bin. Check your Master Key.");
+      }
+    } catch (err) {
+      alert("An error occurred during bin generation.");
+    } finally {
+      setIsGeneratingBin(false);
+    }
+  };
+
+  const geminiModels = [
+    { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro', desc: 'Highest intelligence for complex strategy.' },
+    { id: 'gemini-2.5-pro-latest', name: 'Gemini 2.5 Pro', desc: 'Deep reasoning with robust performance.' },
+    { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', desc: 'Real-time speed with high accuracy.' },
+    { id: 'gemini-2.5-flash-latest', name: 'Gemini 2.5 Flash', desc: 'Optimized balance of speed and power.' },
+    { id: 'gemini-flash-lite-latest', name: 'Gemini 2.5 Flash Lite', desc: 'Lightweight for quick summaries.' },
+  ];
+
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-20">
-      {/* AI Service Status Section */}
+      {/* Intelligence Engine Section */}
       <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
         <div className="flex items-center gap-3 mb-6">
           <div className="bg-indigo-600 p-2 rounded-xl">
-            <i className="fas fa-robot text-white text-sm"></i>
+            <i className="fas fa-brain text-white text-sm"></i>
           </div>
           <div>
-            <h3 className="text-xl font-black text-gray-900 tracking-tight">AI Fund Manager</h3>
-            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">Intelligence Layer Status</p>
+            <h3 className="text-xl font-black text-gray-900 tracking-tight">Intelligence Engine</h3>
+            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">Configure Gemini AI</p>
           </div>
         </div>
 
@@ -42,58 +72,73 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData }) => {
             </div>
             <div>
               <p className={`font-black text-sm uppercase tracking-tight ${isAiReady ? 'text-green-900' : 'text-amber-900'}`}>
-                {isAiReady ? 'Service Operational' : 'Action Required'}
+                {isAiReady ? 'AI Layer Active' : 'AI Offline'}
               </p>
               <p className={`text-xs mt-1 leading-relaxed ${isAiReady ? 'text-green-700/80' : 'text-amber-700/80'}`}>
                 {isAiReady 
-                  ? "The Gemini AI engine is ready. It will prioritize your manual key if provided, or use the system default."
-                  : "No Gemini API Key detected. Please enter your key below to enable AI insights."
+                  ? "Configured and ready to analyze your portfolio."
+                  : "Please enter your Gemini API Key to enable the Fund Manager."
                 }
               </p>
             </div>
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-6">
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Model Selection</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {geminiModels.map(model => (
+                <button
+                  key={model.id}
+                  onClick={() => updateData({ geminiModel: model.id })}
+                  className={`flex flex-col text-left p-4 rounded-xl border-2 transition-all ${
+                    (data.geminiModel || 'gemini-3-pro-preview') === model.id 
+                      ? 'border-indigo-600 bg-indigo-50/50' 
+                      : 'border-gray-50 hover:border-gray-200 bg-gray-50/30'
+                  }`}
+                >
+                  <div className="flex justify-between items-center w-full">
+                    <span className="font-bold text-xs text-gray-900">{model.name}</span>
+                    {(data.geminiModel || 'gemini-3-pro-preview') === model.id && (
+                      <i className="fas fa-check-circle text-indigo-600 text-[10px]"></i>
+                    )}
+                  </div>
+                  <span className="text-[9px] text-gray-500 mt-1 leading-tight">{model.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div>
             <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Gemini API Key</label>
             <input 
               type="password"
-              placeholder="Paste your Gemini API Key here"
+              placeholder="Paste your API Key"
               value={data.geminiApiKey || ''}
               onChange={e => updateData({ geminiApiKey: e.target.value })}
               className="w-full bg-transparent text-black border-b-2 border-gray-200 p-3 focus:border-indigo-500 outline-none transition-colors font-mono text-sm"
             />
-            <p className="text-[10px] text-gray-400 mt-2">
-              Keys are stored securely in your browser's local storage and never sent to our servers.
-            </p>
-          </div>
-
-          <div className="pt-4 border-t border-black/5 flex items-center justify-between">
-            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Model: Gemini 3 Pro</span>
-            <a 
-              href="https://aistudio.google.com/app/apikey" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-[9px] text-indigo-500 hover:text-indigo-700 font-bold uppercase tracking-wider flex items-center gap-1"
-            >
-              <i className="fas fa-external-link-alt text-[8px]"></i>
-              Get your API Key
-            </a>
           </div>
         </div>
       </div>
 
+      {/* Cloud Infrastructure Section */}
       <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
-        <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
-          <i className="fas fa-cloud-upload-alt text-indigo-600 mr-3"></i>
-          JSONBin Cloud Sync
-        </h3>
+        <div className="flex items-center gap-3 mb-6">
+          <div className="bg-indigo-600 p-2 rounded-xl">
+            <i className="fas fa-cloud-upload-alt text-white text-sm"></i>
+          </div>
+          <div>
+            <h3 className="text-xl font-black text-gray-900 tracking-tight">Cloud Infrastructure</h3>
+            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">JSONBin Remote Storage</p>
+          </div>
+        </div>
         
         <div className="flex items-center justify-between mb-8 p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
           <div>
-            <p className="font-bold text-indigo-900">Enable Sync</p>
-            <p className="text-sm text-indigo-700 opacity-80">Keep your data safe across multiple devices.</p>
+            <p className="font-bold text-indigo-900">Enable Cloud Sync</p>
+            <p className="text-sm text-indigo-700 opacity-80">Synchronize data across all your devices.</p>
           </div>
           <button 
             onClick={() => updateData({ cloudSyncEnabled: !data.cloudSyncEnabled })}
@@ -114,15 +159,28 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData }) => {
               className="w-full bg-transparent text-black border-b-2 border-gray-200 p-3 focus:border-indigo-500 outline-none transition-colors font-mono text-sm"
             />
           </div>
-          <div>
+          
+          <div className="relative">
             <label className="block text-xs font-bold text-gray-400 uppercase mb-1">JSONBin Bin ID</label>
-            <input 
-              type="text"
-              placeholder="Your Bin ID"
-              value={data.jsonBinId || ''}
-              onChange={e => updateData({ jsonBinId: e.target.value })}
-              className="w-full bg-transparent text-black border-b-2 border-gray-200 p-3 focus:border-indigo-500 outline-none transition-colors font-mono text-sm"
-            />
+            <div className="flex gap-2">
+              <input 
+                type="text"
+                placeholder="Linked Bin ID"
+                value={data.jsonBinId || ''}
+                onChange={e => updateData({ jsonBinId: e.target.value })}
+                className="flex-1 bg-transparent text-black border-b-2 border-gray-200 p-3 focus:border-indigo-500 outline-none transition-colors font-mono text-sm"
+              />
+              {data.jsonBinKey && !data.jsonBinId && (
+                <button 
+                  onClick={handleGenerateBin}
+                  disabled={isGeneratingBin}
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-tighter hover:bg-indigo-700 transition-all flex items-center gap-2"
+                >
+                  {isGeneratingBin ? <i className="fas fa-circle-notch animate-spin"></i> : <i className="fas fa-magic"></i>}
+                  Auto-Gen
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -165,7 +223,7 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData }) => {
       </div>
       
       <div className="text-center">
-        <p className="text-sm text-gray-400 font-medium tracking-tight">FundLens v1.2.3 — Standard Edition</p>
+        <p className="text-sm text-gray-400 font-medium tracking-tight">FundLens v1.3.1 — Multi-Model Edition</p>
       </div>
     </div>
   );

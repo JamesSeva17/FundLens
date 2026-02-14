@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AppData, Asset, PriceResponse, Platform, AssetType, Transaction } from '../types';
 import { getPriceForAsset } from '../services/priceService';
 import AssetIcon from './AssetIcon';
@@ -25,13 +25,29 @@ const Portfolio: React.FC<PortfolioProps> = ({ data, prices, updateData, setPric
     date: new Date().toISOString().split('T')[0]
   });
 
+  // Extract unique existing tickers for auto-suggestion
+  const existingTickers = useMemo(() => {
+    return Array.from(new Set(data.assets.map(a => a.ticker))).sort();
+  }, [data.assets]);
+
+  // Helper to format string as currency (with commas)
+  const formatCurrency = (val: string) => {
+    let numeric = val.replace(/[^0-9.]/g, '');
+    const split = numeric.split('.');
+    if (split.length > 2) numeric = split[0] + '.' + split[1];
+    const [integer, decimal] = numeric.split('.');
+    const formattedInteger = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return decimal !== undefined ? `${formattedInteger}.${decimal}` : formattedInteger;
+  };
+
   const handleAddAsset = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     
-    const units = parseFloat(formData.units);
-    const buyPrice = parseFloat(formData.price);
-    const fee = parseFloat(formData.fee) || 0;
+    // Parse strings back to numbers by removing commas
+    const units = parseFloat(formData.units.replace(/,/g, ''));
+    const buyPrice = parseFloat(formData.price.replace(/,/g, ''));
+    const fee = parseFloat(formData.fee.replace(/,/g, '')) || 0;
     const tickerUpper = formData.ticker.toUpperCase().trim();
 
     const newTransaction: Transaction = {
@@ -65,10 +81,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ data, prices, updateData, setPric
       activeAsset = newAsset;
     }
 
-    // 1. Save locally immediately so it appears in the list
     updateData({ assets: assetsToSave });
-    
-    // 2. Close form and reset states immediately for snappy UX
     setShowAddForm(false);
     setIsSubmitting(false);
     setFormData({
@@ -81,7 +94,6 @@ const Portfolio: React.FC<PortfolioProps> = ({ data, prices, updateData, setPric
       date: new Date().toISOString().split('T')[0]
     });
 
-    // 3. Automatically retrieve the price in the background
     try {
       const priceRes = await getPriceForAsset(activeAsset, prices);
       if (priceRes) {
@@ -125,7 +137,18 @@ const Portfolio: React.FC<PortfolioProps> = ({ data, prices, updateData, setPric
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-[9px] font-black text-indigo-300 uppercase mb-1">Ticker</label>
-              <input type="text" required value={formData.ticker} onChange={e => setFormData({...formData, ticker: e.target.value})} placeholder="BTC or AC" className="w-full bg-transparent text-black border-b border-gray-100 p-2 font-bold focus:border-indigo-500 outline-none text-sm" />
+              <input 
+                type="text" 
+                required 
+                list="ticker-suggestions"
+                value={formData.ticker} 
+                onChange={e => setFormData({...formData, ticker: e.target.value})} 
+                placeholder="BTC or AC" 
+                className="w-full bg-transparent text-black border-b border-gray-100 p-2 font-bold focus:border-indigo-500 outline-none text-sm uppercase" 
+              />
+              <datalist id="ticker-suggestions">
+                {existingTickers.map(t => <option key={t} value={t} />)}
+              </datalist>
             </div>
             <div>
               <label className="block text-[9px] font-black text-indigo-300 uppercase mb-1">Platform</label>
@@ -137,15 +160,15 @@ const Portfolio: React.FC<PortfolioProps> = ({ data, prices, updateData, setPric
             </div>
             <div>
               <label className="block text-[9px] font-black text-indigo-300 uppercase mb-1">Units</label>
-              <input type="number" step="any" required value={formData.units} onChange={e => setFormData({...formData, units: e.target.value})} className="w-full bg-transparent text-black border-b border-gray-100 p-2 font-bold focus:border-indigo-500 outline-none text-sm" />
+              <input type="text" required value={formData.units} onChange={e => setFormData({...formData, units: formatCurrency(e.target.value)})} className="w-full bg-transparent text-black border-b border-gray-100 p-2 font-bold focus:border-indigo-500 outline-none text-sm" />
             </div>
             <div>
               <label className="block text-[9px] font-black text-indigo-300 uppercase mb-1">Buy Price</label>
-              <input type="number" step="any" required value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} className="w-full bg-transparent text-black border-b border-gray-100 p-2 font-bold focus:border-indigo-500 outline-none text-sm" />
+              <input type="text" required value={formData.price} onChange={e => setFormData({...formData, price: formatCurrency(e.target.value)})} className="w-full bg-transparent text-black border-b border-gray-100 p-2 font-bold focus:border-indigo-500 outline-none text-sm" />
             </div>
             <div>
               <label className="block text-[9px] font-black text-indigo-300 uppercase mb-1">Fees</label>
-              <input type="number" step="any" value={formData.fee} onChange={e => setFormData({...formData, fee: e.target.value})} className="w-full bg-transparent text-black border-b border-gray-100 p-2 font-bold focus:border-indigo-500 outline-none text-sm" />
+              <input type="text" value={formData.fee} onChange={e => setFormData({...formData, fee: formatCurrency(e.target.value)})} className="w-full bg-transparent text-black border-b border-gray-100 p-2 font-bold focus:border-indigo-500 outline-none text-sm" />
             </div>
           </div>
           <div className="mt-6 flex justify-end gap-3 pt-3 border-t border-gray-50">

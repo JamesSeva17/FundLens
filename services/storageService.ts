@@ -3,6 +3,28 @@ import { AppData } from "../types";
 
 const LOCAL_STORAGE_KEY = 'fundlens_app_data';
 
+export async function createBin(masterKey: string, initialData: AppData): Promise<string | null> {
+  try {
+    const response = await fetch(`https://api.jsonbin.io/v3/b`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Master-Key': masterKey,
+        'X-Bin-Private': 'true'
+      },
+      body: JSON.stringify(initialData)
+    });
+    if (response.ok) {
+      const result = await response.json();
+      return result.metadata.id;
+    }
+    return null;
+  } catch (error) {
+    console.error("Failed to create bin:", error);
+    return null;
+  }
+}
+
 export async function saveToCloud(data: AppData): Promise<boolean> {
   if (!data.cloudSyncEnabled || !data.jsonBinKey || !data.jsonBinId) return false;
 

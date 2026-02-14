@@ -39,6 +39,7 @@ export interface AppData {
   jsonBinKey?: string;
   jsonBinId?: string;
   geminiApiKey?: string;
+  geminiModel?: string;
 }
 
 export interface PriceResponse {
