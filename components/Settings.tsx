@@ -7,90 +7,78 @@ interface SettingsProps {
   updateData: (partial: Partial<AppData>) => void;
 }
 
-// Fixed: Removed local declare global for window.aistudio to avoid conflict with ambient types.
-// We'll access it safely via type casting where needed since the environment already provides it.
-
 const Settings: React.FC<SettingsProps> = ({ data, updateData }) => {
-  const [hasKey, setHasKey] = useState(false);
+  const [isAiReady, setIsAiReady] = useState(false);
 
   useEffect(() => {
-    checkKey();
-  }, []);
-
-  const checkKey = async () => {
-    // Accessing environment-provided window.aistudio safely
-    const aistudio = (window as any).aistudio;
-    if (aistudio && typeof aistudio.hasSelectedApiKey === 'function') {
-      try {
-        const selected = await aistudio.hasSelectedApiKey();
-        setHasKey(selected);
-      } catch (e) {
-        console.error("Error checking API key status", e);
-      }
-    }
-  };
-
-  const handleSelectKey = async () => {
-    const aistudio = (window as any).aistudio;
-    if (aistudio && typeof aistudio.openSelectKey === 'function') {
-      try {
-        await aistudio.openSelectKey();
-        // GUIDELINE: Assume success immediately after opening the selector to mitigate race conditions
-        setHasKey(true);
-      } catch (e) {
-        console.error("Error opening key selector", e);
-      }
-    }
-  };
+    // Check if the API key is available in either AppData or environment
+    const apiKey = data.geminiApiKey || process.env.API_KEY;
+    setIsAiReady(!!apiKey && apiKey !== 'undefined');
+  }, [data.geminiApiKey]);
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8">
-      {/* AI Configuration Section */}
+    <div className="max-w-2xl mx-auto space-y-8 pb-20">
+      {/* AI Service Status Section */}
       <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
         <div className="flex items-center gap-3 mb-6">
           <div className="bg-indigo-600 p-2 rounded-xl">
-            <i className="fas fa-key text-white text-sm"></i>
+            <i className="fas fa-robot text-white text-sm"></i>
           </div>
           <div>
-            <h3 className="text-xl font-black text-gray-900 tracking-tight">AI Fund Manager Config</h3>
-            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">Provider: Google Gemini</p>
+            <h3 className="text-xl font-black text-gray-900 tracking-tight">AI Fund Manager</h3>
+            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">Intelligence Layer Status</p>
           </div>
         </div>
 
-        <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100 space-y-4">
+        <div className={`p-6 rounded-2xl border transition-all duration-500 mb-6 ${
+          isAiReady 
+            ? 'bg-green-50/50 border-green-100' 
+            : 'bg-amber-50 border-amber-100'
+        }`}>
           <div className="flex items-start gap-4">
-            <div className={`w-3 h-3 rounded-full mt-1 shrink-0 ${hasKey ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]'}`}></div>
+            <div className="relative flex h-3 w-3 mt-1.5">
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isAiReady ? 'bg-green-400' : 'bg-amber-400'}`}></span>
+              <span className={`relative inline-flex rounded-full h-3 w-3 ${isAiReady ? 'bg-green-500' : 'bg-amber-500'}`}></span>
+            </div>
             <div>
-              <p className="font-black text-indigo-900 text-sm">{hasKey ? 'Gemini Key Connected' : 'Gemini Key Required'}</p>
-              <p className="text-xs text-indigo-700 opacity-80 mt-1 leading-relaxed">
-                To use the Fund Manager AI, you must connect a valid Gemini API Key from your own Google Cloud project.
+              <p className={`font-black text-sm uppercase tracking-tight ${isAiReady ? 'text-green-900' : 'text-amber-900'}`}>
+                {isAiReady ? 'Service Operational' : 'Action Required'}
+              </p>
+              <p className={`text-xs mt-1 leading-relaxed ${isAiReady ? 'text-green-700/80' : 'text-amber-700/80'}`}>
+                {isAiReady 
+                  ? "The Gemini AI engine is ready. It will prioritize your manual key if provided, or use the system default."
+                  : "No Gemini API Key detected. Please enter your key below to enable AI insights."
+                }
               </p>
             </div>
           </div>
+        </div>
 
-          <div className="pt-2">
-            <button 
-              onClick={handleSelectKey}
-              className={`w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-md active:scale-95 ${
-                hasKey 
-                ? 'bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50' 
-                : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-200'
-              }`}
-            >
-              <i className={`fas ${hasKey ? 'fa-sync-alt' : 'fa-plug'} mr-2`}></i>
-              {hasKey ? 'Switch API Key' : 'Connect Gemini Key'}
-            </button>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Gemini API Key</label>
+            <input 
+              type="password"
+              placeholder="Paste your Gemini API Key here"
+              value={data.geminiApiKey || ''}
+              onChange={e => updateData({ geminiApiKey: e.target.value })}
+              className="w-full bg-transparent text-black border-b-2 border-gray-200 p-3 focus:border-indigo-500 outline-none transition-colors font-mono text-sm"
+            />
+            <p className="text-[10px] text-gray-400 mt-2">
+              Keys are stored securely in your browser's local storage and never sent to our servers.
+            </p>
           </div>
-          
-          <div className="pt-2">
+
+          <div className="pt-4 border-t border-black/5 flex items-center justify-between">
+            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Model: Gemini 3 Pro</span>
             <a 
-              href="https://ai.google.dev/gemini-api/docs/billing" 
+              href="https://aistudio.google.com/app/apikey" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="text-[10px] text-indigo-500 hover:text-indigo-700 font-bold uppercase tracking-wider flex items-center gap-1 justify-center"
+              className="text-[9px] text-indigo-500 hover:text-indigo-700 font-bold uppercase tracking-wider flex items-center gap-1"
             >
               <i className="fas fa-external-link-alt text-[8px]"></i>
-              Learn about Project Billing Requirements
+              Get your API Key
             </a>
           </div>
         </div>
@@ -123,7 +111,7 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData }) => {
               placeholder="Your Master Key"
               value={data.jsonBinKey || ''}
               onChange={e => updateData({ jsonBinKey: e.target.value })}
-              className="w-full bg-transparent text-black border-b-2 border-gray-200 p-3 focus:border-indigo-500 outline-none transition-colors"
+              className="w-full bg-transparent text-black border-b-2 border-gray-200 p-3 focus:border-indigo-500 outline-none transition-colors font-mono text-sm"
             />
           </div>
           <div>
@@ -133,7 +121,7 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData }) => {
               placeholder="Your Bin ID"
               value={data.jsonBinId || ''}
               onChange={e => updateData({ jsonBinId: e.target.value })}
-              className="w-full bg-transparent text-black border-b-2 border-gray-200 p-3 focus:border-indigo-500 outline-none transition-colors"
+              className="w-full bg-transparent text-black border-b-2 border-gray-200 p-3 focus:border-indigo-500 outline-none transition-colors font-mono text-sm"
             />
           </div>
         </div>
@@ -177,7 +165,7 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData }) => {
       </div>
       
       <div className="text-center">
-        <p className="text-sm text-gray-400 font-medium tracking-tight">FundLens v1.2.0 — Interactive Wealth Management</p>
+        <p className="text-sm text-gray-400 font-medium tracking-tight">FundLens v1.2.3 — Standard Edition</p>
       </div>
     </div>
   );

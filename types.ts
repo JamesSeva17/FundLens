@@ -38,6 +38,7 @@ export interface AppData {
   cloudSyncEnabled: boolean;
   jsonBinKey?: string;
   jsonBinId?: string;
+  geminiApiKey?: string;
 }
 
 export interface PriceResponse {

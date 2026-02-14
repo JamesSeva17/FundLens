@@ -2,14 +2,16 @@
 import { GoogleGenAI } from "@google/genai";
 import { AppData, PriceResponse } from "../types";
 
-export const getGeminiClient = () => {
-  // Always create a new instance to ensure it picks up the latest key injected by the platform
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+export const getGeminiClient = (userKey?: string) => {
+  const apiKey = userKey || process.env.API_KEY;
+  if (!apiKey || apiKey === 'undefined') {
+    throw new Error("API_KEY_MISSING");
+  }
+  return new GoogleGenAI({ apiKey });
 };
 
 /**
  * Interacts with the portfolio as a fund manager based on user queries.
- * Updated to return grounding sources for Google Search compliance.
  */
 export async function getPortfolioInsights(
   data: AppData,
@@ -17,7 +19,15 @@ export async function getPortfolioInsights(
   totalNetWorth: number,
   userQuery?: string
 ): Promise<{ text: string; sources?: { title: string; uri: string }[] }> {
-  const ai = getGeminiClient();
+  let ai;
+  try {
+    ai = getGeminiClient(data.geminiApiKey);
+  } catch (e: any) {
+    if (e.message === "API_KEY_MISSING") {
+      throw new Error("API_KEY_ERROR");
+    }
+    throw e;
+  }
 
   // Prepare a concise summary for the AI
   const assetSummary = data.assets.map(asset => {
@@ -67,7 +77,6 @@ export async function getPortfolioInsights(
 
     const text = response.text || "I was unable to analyze the data. Please try again with a more specific query.";
     
-    // GUIDELINE: Always extract website URLs from groundingChunks when using googleSearch
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
     const sources = groundingChunks?.filter((c: any) => c.web).map((c: any) => ({
       title: c.web.title,
@@ -75,11 +84,14 @@ export async function getPortfolioInsights(
     }));
 
     return { text, sources };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini Interaction Error:", error);
-    if (error instanceof Error && error.message.includes("Requested entity was not found")) {
+    
+    const errMsg = error?.message || "";
+    if (errMsg.includes("Requested entity was not found") || errMsg.includes("API key not valid") || errMsg.includes("403")) {
       throw new Error("API_KEY_ERROR");
     }
-    throw new Error("The fund manager is currently unavailable. Check your connection or API key.");
+    
+    throw new Error("The fund manager is currently busy. Please check your connection or environment key configuration.");
   }
 }
