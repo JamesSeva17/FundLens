@@ -29,7 +29,7 @@ export async function getPortfolioInsights(
     throw e;
   }
 
-  // Prepare a concise summary for the AI
+  // 1. Prepare Investment Assets Summary
   const assetSummary = data.assets.map(asset => {
     const currentPrice = prices[asset.ticker]?.price_php || 0;
     const totalUnits = asset.transactions.reduce((s, t) => s + t.units, 0);
@@ -48,28 +48,50 @@ export async function getPortfolioInsights(
     };
   });
 
+  // 2. Prepare Savings (Wallets) Summary
+  // We look at the latest snapshot and compare it to the previous one to find performance
+  const sortedSnapshots = [...data.snapshots].sort((a, b) => b.date.localeCompare(a.date));
+  const latestSnap = sortedSnapshots[0];
+  const prevSnap = sortedSnapshots[1];
+
+  const savingsSummary = latestSnap?.platforms.map(p => {
+    const prevBal = prevSnap?.platforms.find(prevP => prevP.name === p.name)?.balance || 0;
+    const diff = p.balance - prevBal;
+    const pct = prevBal > 0 ? (diff / prevBal) * 100 : 0;
+    
+    return {
+      walletName: p.name,
+      currentBalance: `PHP ${p.balance.toLocaleString()}`,
+      performanceMoM: `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`,
+      nominalChange: `PHP ${diff.toLocaleString()}`
+    };
+  }) || [];
+
   const basePrompt = `
     You are a world-class Senior Fund Manager and Financial Strategist specializing in the Philippine Stock Exchange (PSE) and global Cryptocurrency markets.
     
-    Portfolio Snapshot:
+    User Financial Data:
     - Total Net Worth: PHP ${totalNetWorth.toLocaleString()}
-    - Assets: ${JSON.stringify(assetSummary)}
+    
+    1. Investment Portfolio (Stocks/Crypto):
+    ${JSON.stringify(assetSummary, null, 2)}
+    
+    2. Savings Breakdown (Banks/Wallets/Cash):
+    ${JSON.stringify(savingsSummary, null, 2)}
     
     User Query: ${userQuery || "Provide a general strategic review of my portfolio and market outlook."}
     
     Guidelines:
-    1. Respond as a professional advisor. Use data-driven insights.
-    2. Reference current market trends (PSEi, Bitcoin price action, PH inflation) where relevant.
-    3. Be concise and authoritative.
-    4. Format with clean bullet points.
-    5. Do NOT include generic disclaimers.
+    1. Respond as a professional advisor. Use data-driven insights based specifically on the User Financial Data provided above.
+    2. If the user asks about "best performers", look at the "performanceMoM" field for Savings or "gainLossPct" for Investments.
+    3. Reference current market trends (PSEi, Bitcoin price action, PH inflation) where relevant using your search tools.
+    4. Be concise, authoritative, and helpful.
+    5. Format with clean bullet points.
+    6. Do NOT include generic disclaimers.
   `;
 
   try {
-    // Default to gemini-3-pro-preview as per instructions for complex text tasks
     const modelToUse = data.geminiModel || 'gemini-3-pro-preview';
-    
-    // Pro models benefit from more thinking tokens for deep financial analysis
     const isPro = modelToUse.includes('pro');
     const budget = isPro ? 4096 : 1024;
 
@@ -93,12 +115,10 @@ export async function getPortfolioInsights(
     return { text, sources };
   } catch (error: any) {
     console.error("Gemini Interaction Error:", error);
-    
     const errMsg = error?.message || "";
     if (errMsg.includes("Requested entity was not found") || errMsg.includes("API key not valid") || errMsg.includes("403")) {
       throw new Error("API_KEY_ERROR");
     }
-    
     throw new Error("The fund manager is currently busy. Please check your connection or model settings.");
   }
 }
