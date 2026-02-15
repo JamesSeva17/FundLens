@@ -10,6 +10,8 @@ import Snapshots from './components/Snapshots';
 import Settings from './components/Settings';
 
 const PRICE_CACHE_KEY = 'fundlens_price_cache';
+const SYNC_TIMESTAMP_KEY = 'fundlens_last_sync_time';
+const CACHE_TTL_SEC = 60;
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'portfolio' | 'savings' | 'settings'>('dashboard');
@@ -23,6 +25,12 @@ const App: React.FC = () => {
     }
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastManualSync, setLastManualSync] = useState<number>(() => {
+    const saved = localStorage.getItem(SYNC_TIMESTAMP_KEY);
+    return saved ? parseInt(saved, 10) : 0;
+  });
+  const [remainingCooldown, setRemainingCooldown] = useState(0);
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
 
   // 1. Core Initialization
   useEffect(() => {
@@ -42,6 +50,20 @@ const App: React.FC = () => {
     localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify(prices));
   }, [prices]);
 
+  // Handle Cooldown Timer
+  useEffect(() => {
+    const updateTimer = () => {
+      const now = Date.now();
+      const elapsed = (now - lastManualSync) / 1000;
+      const remaining = Math.max(0, Math.ceil(CACHE_TTL_SEC - elapsed));
+      setRemainingCooldown(remaining);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [lastManualSync]);
+
   // Track page views on tab change
   useEffect(() => {
     trackPageView(activeTab);
@@ -56,11 +78,17 @@ const App: React.FC = () => {
   }, []);
 
   // 2. Refresh Logic (Prices + Logos)
-  const refreshPrices = useCallback(async (assetList?: Asset[]) => {
+  const refreshPrices = useCallback(async (assetList?: Asset[], isManual: boolean = false) => {
     const listToRefresh = assetList || data.assets;
     if (isRefreshing || listToRefresh.length === 0) return;
     
     setIsRefreshing(true);
+    
+    if (isManual) {
+      const now = Date.now();
+      setLastManualSync(now);
+      localStorage.setItem(SYNC_TIMESTAMP_KEY, now.toString());
+    }
     
     try {
       const fetchPromises = listToRefresh.map(async (asset) => {
@@ -92,6 +120,11 @@ const App: React.FC = () => {
         });
         return next;
       });
+
+      if (isManual) {
+        setSyncNotice("Prices successfully updated.");
+        setTimeout(() => setSyncNotice(null), 3000);
+      }
     } catch (error) {
       console.error("Refresh failed:", error);
     } finally {
@@ -120,6 +153,21 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
+      {/* Toast Notification */}
+      {syncNotice && (
+        <div className="fixed top-4 right-4 z-[100] animate-in slide-in-from-right-10 fade-in duration-300">
+          <div className="bg-indigo-900 text-white px-6 py-4 rounded-2xl shadow-2xl border border-indigo-700 flex items-center gap-4">
+            <div className="bg-indigo-500/20 p-2 rounded-lg">
+              <i className="fas fa-check-circle text-green-400"></i>
+            </div>
+            <p className="text-xs font-black uppercase tracking-widest">{syncNotice}</p>
+            <button onClick={() => setSyncNotice(null)} className="ml-2 text-indigo-400 hover:text-white">
+              <i className="fas fa-times"></i>
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="md:hidden bg-white border-b border-gray-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm">
         <div>
           <h1 className="text-xl font-black text-indigo-900 leading-none tracking-tight">FundLens</h1>
@@ -173,12 +221,12 @@ const App: React.FC = () => {
             <div className="flex gap-2">
               {activeTab !== 'savings' && (
                 <button 
-                  onClick={() => refreshPrices()}
-                  disabled={isRefreshing}
-                  className="bg-white border border-gray-200 text-gray-900 px-6 py-3 rounded-2xl shadow-sm hover:shadow-md disabled:opacity-50 transition-all text-xs font-black uppercase tracking-widest"
+                  onClick={() => refreshPrices(undefined, true)}
+                  disabled={isRefreshing || remainingCooldown > 0}
+                  className="bg-white border border-gray-200 text-gray-900 px-6 py-3 rounded-2xl shadow-sm hover:shadow-md disabled:opacity-50 transition-all text-xs font-black uppercase tracking-widest min-w-[160px]"
                 >
                   <i className={`fas fa-sync-alt mr-2 ${isRefreshing ? 'animate-spin' : ''}`}></i>
-                  {isRefreshing ? 'Syncing...' : 'Sync Prices'}
+                  {isRefreshing ? 'Syncing...' : remainingCooldown > 0 ? `Sync in ${remainingCooldown}s` : 'Sync Prices'}
                 </button>
               )}
             </div>
