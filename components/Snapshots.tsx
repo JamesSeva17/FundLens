@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { AppData, MonthlySnapshot, SnapshotPlatform } from '../types';
 
@@ -10,6 +9,7 @@ interface SnapshotsProps {
 const Snapshots: React.FC<SnapshotsProps> = ({ data, updateData }) => {
   const [showAdd, setShowAdd] = useState(false);
   const [expandedInstitution, setExpandedInstitution] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'balance' | 'mom' | 'name'>('balance');
   
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
@@ -98,7 +98,6 @@ const Snapshots: React.FC<SnapshotsProps> = ({ data, updateData }) => {
     
     const numericBalance = parseFloat(newPlatform.balance.replace(/,/g, ''));
     
-    // If the name already exists in the current form, update it instead of adding a new row
     const existingIndex = formData.platforms.findIndex(p => p.name === cleanName);
     
     if (existingIndex >= 0) {
@@ -121,10 +120,9 @@ const Snapshots: React.FC<SnapshotsProps> = ({ data, updateData }) => {
 
   const itemSummaries = useMemo(() => {
     const sortedSnapshots = [...data.snapshots].sort((a, b) => a.date.localeCompare(b.date));
-    // Fix: Explicitly type uniqueItems as string[] to prevent 'unknown' type inference in index operations.
     const uniqueItems: string[] = Array.from(new Set(data.snapshots.flatMap(s => s.platforms.map(p => p.name))));
 
-    return uniqueItems.map(name => {
+    const summaries = uniqueItems.map(name => {
       const history = sortedSnapshots
         .map(s => ({ date: s.date, balance: s.platforms.find(p => p.name === name)?.balance }))
         .filter(h => h.balance !== undefined) as { date: string, balance: number }[];
@@ -154,15 +152,42 @@ const Snapshots: React.FC<SnapshotsProps> = ({ data, updateData }) => {
         iconUrl: data.platformIcons?.[name]
       };
     }).filter(Boolean) as any[];
-  }, [data.snapshots, data.platformIcons]);
+
+    // APPLY SORTING
+    return summaries.sort((a, b) => {
+      if (sortBy === 'balance') return b.current - a.current;
+      if (sortBy === 'mom') return b.pctPrev - a.pctPrev;
+      return a.name.localeCompare(b.name);
+    });
+  }, [data.snapshots, data.platformIcons, sortBy]);
 
   return (
     <div className="space-y-4 max-w-full overflow-hidden">
-      <div className="flex justify-between items-center px-1">
-        <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Savings Breakdown</h3>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-1">
+        <div className="flex flex-col">
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: 'balance', label: 'Balance' },
+              { id: 'mom', label: 'MoM' },
+              { id: 'name', label: 'A-Z' }
+            ].map((opt) => (
+              <button 
+                key={opt.id}
+                onClick={() => setSortBy(opt.id as any)}
+                className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-lg border transition-all ${
+                  sortBy === opt.id 
+                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' 
+                    : 'bg-white border-gray-200 text-gray-400 hover:border-indigo-200'
+                }`}
+              >
+                Sort by {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <button 
           onClick={() => setShowAdd(!showAdd)}
-          className="bg-indigo-600 text-white px-5 py-2 rounded-xl font-black text-xs hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+          className="bg-indigo-600 text-white px-5 py-2 rounded-xl font-black text-xs hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 w-full md:w-auto"
         >
           {showAdd ? 'Cancel' : <><i className="fas fa-plus mr-1"></i> Update Log</>}
         </button>

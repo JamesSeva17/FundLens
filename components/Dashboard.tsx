@@ -8,7 +8,7 @@ interface DashboardProps {
   data: AppData;
   prices: Record<string, PriceResponse>;
   total: number;
-  onNavigate: (tab: 'portfolio' | 'snapshots' | 'settings') => void;
+  onNavigate: (tab: 'portfolio' | 'savings' | 'settings') => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ data, prices, total, onNavigate }) => {
@@ -107,7 +107,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, prices, total, onNavigate }
         </button>
 
         <button 
-          onClick={() => onNavigate('snapshots')}
+          onClick={() => onNavigate('savings')}
           className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-left hover:border-indigo-200 hover:shadow-md transition-all group active:scale-[0.98]"
         >
           <div className="flex justify-between items-start">

@@ -12,11 +12,15 @@ import Settings from './components/Settings';
 const PRICE_CACHE_KEY = 'fundlens_price_cache';
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'portfolio' | 'snapshots' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'portfolio' | 'savings' | 'settings'>('dashboard');
   const [data, setData] = useState<AppData>(loadLocal());
   const [prices, setPrices] = useState<Record<string, PriceResponse>>(() => {
-    const cached = localStorage.getItem(PRICE_CACHE_KEY);
-    return cached ? JSON.parse(cached) : {};
+    try {
+      const cached = localStorage.getItem(PRICE_CACHE_KEY);
+      return cached ? JSON.parse(cached) : {};
+    } catch (e) {
+      return {};
+    }
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -33,7 +37,7 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Save prices to local storage for persistence across refreshes
+  // Sync prices to local storage whenever they change
   useEffect(() => {
     localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify(prices));
   }, [prices]);
@@ -95,7 +99,7 @@ const App: React.FC = () => {
     }
   }, [data.assets, data.assetIcons, isRefreshing, updateData]);
 
-  // 3. Trigger Price Refresh on Mount if cache is old or empty
+  // 3. Trigger Price Refresh on Mount
   useEffect(() => {
     refreshPrices();
   }, []); 
@@ -136,7 +140,7 @@ const App: React.FC = () => {
           {[
             { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-pie' },
             { id: 'portfolio', label: 'Portfolio', icon: 'fa-briefcase' },
-            { id: 'snapshots', label: 'Savings', icon: 'fa-vault' },
+            { id: 'savings', label: 'Savings', icon: 'fa-vault' },
             { id: 'settings', label: 'Settings', icon: 'fa-cog' },
           ].map(item => (
             <button
@@ -161,20 +165,22 @@ const App: React.FC = () => {
         <header className="flex flex-col md:flex-row md:items-center justify-between mb-6 md:mb-8 gap-4">
           <div className="px-1">
             <h2 className="text-3xl font-black text-gray-900 tracking-tight">
-              {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+              {activeTab === 'savings' ? 'Savings Breakdown' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
             </h2>
           </div>
           
           <div className="flex flex-col items-end gap-2">
             <div className="flex gap-2">
-              <button 
-                onClick={() => refreshPrices()}
-                disabled={isRefreshing}
-                className="bg-white border border-gray-200 text-gray-900 px-6 py-3 rounded-2xl shadow-sm hover:shadow-md disabled:opacity-50 transition-all text-xs font-black uppercase tracking-widest"
-              >
-                <i className={`fas fa-sync-alt mr-2 ${isRefreshing ? 'animate-spin' : ''}`}></i>
-                {isRefreshing ? 'Syncing...' : 'Get Latest price'}
-              </button>
+              {activeTab !== 'savings' && (
+                <button 
+                  onClick={() => refreshPrices()}
+                  disabled={isRefreshing}
+                  className="bg-white border border-gray-200 text-gray-900 px-6 py-3 rounded-2xl shadow-sm hover:shadow-md disabled:opacity-50 transition-all text-xs font-black uppercase tracking-widest"
+                >
+                  <i className={`fas fa-sync-alt mr-2 ${isRefreshing ? 'animate-spin' : ''}`}></i>
+                  {isRefreshing ? 'Syncing...' : 'Sync Prices'}
+                </button>
+              )}
             </div>
           </div>
         </header>
@@ -189,7 +195,7 @@ const App: React.FC = () => {
             />
           )}
           {activeTab === 'portfolio' && <Portfolio data={data} prices={prices} updateData={updateData} setPrices={setPrices} />}
-          {activeTab === 'snapshots' && <Snapshots data={data} updateData={updateData} />}
+          {activeTab === 'savings' && <Snapshots data={data} updateData={updateData} />}
           {activeTab === 'settings' && <Settings data={data} updateData={updateData} />}
         </div>
       </main>
