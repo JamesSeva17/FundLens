@@ -1,4 +1,3 @@
-
 export type Platform = 'COL Financial' | 'Coins.ph' | 'Bybit' | 'Bank' | 'Cash' | 'E-Wallet';
 export type AssetType = 'Stock' | 'Crypto' | 'Cash' | 'Other';
 

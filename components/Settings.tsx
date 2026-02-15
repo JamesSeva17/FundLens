@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppData } from '../types';
 import { createBin } from '../services/storageService';
@@ -27,10 +26,6 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData }) => {
     setIsAiReady(isValid);
   }, [data.geminiApiKey]);
 
-  /**
-   * Directly fetches models using REST to ensure maximum compatibility 
-   * and avoid iterator/serialization issues in ESM environments.
-   */
   const fetchModels = useCallback(async () => {
     const apiKey = data.geminiApiKey || process.env.API_KEY;
     if (!apiKey || apiKey === 'undefined') {
@@ -42,7 +37,6 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData }) => {
     setFetchError(null);
     
     try {
-      // Direct REST call to ensure we get the raw JSON exactly as seen in the network tab
       const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
       const response = await fetch(url);
       
@@ -66,13 +60,11 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData }) => {
         throw new Error("The API returned an empty list of models.");
       }
 
-      // Map and filter text generation models
       const filtered = rawModels
         .filter((m: any) => {
           const methods = m.supportedGenerationMethods || m.supportedMethods || [];
           const supportsGen = methods.includes('generateContent');
           const name = (m.name || '').toLowerCase();
-          // Filter out utility models but keep a broad range
           return supportsGen && !name.includes('embedding') && !name.includes('aqa');
         })
         .map((m: any) => {
@@ -84,7 +76,6 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData }) => {
           };
         })
         .sort((a, b) => {
-          // Sort Gemini 3/2.5 to the top
           if (a.id.includes('gemini-3') && !b.id.includes('gemini-3')) return -1;
           if (b.id.includes('gemini-3') && !a.id.includes('gemini-3')) return 1;
           if (a.id.includes('gemini-2.5') && !b.id.includes('gemini-2.5')) return -1;
@@ -96,8 +87,6 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData }) => {
     } catch (err: any) {
       console.error("Model discovery error:", err);
       setFetchError(err.message || "Discovery failed");
-      
-      // Fallback to essential models if the fetch fails completely
       setAvailableModels([
         { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro', description: 'Advanced reasoning and strategy.' },
         { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', description: 'High speed and efficiency.' },
@@ -276,7 +265,7 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData }) => {
             <label className="block text-xs font-bold text-gray-400 uppercase mb-1">JSONBin Bin ID</label>
             <div className="flex gap-2">
               <input 
-                type="text"
+                type="text" 
                 placeholder="Linked Bin ID"
                 value={data.jsonBinId || ''}
                 onChange={e => updateData({ jsonBinId: e.target.value })}
@@ -335,7 +324,7 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData }) => {
       </div>
       
       <div className="text-center">
-        <p className="text-sm text-gray-400 font-medium tracking-tight">FundLens v1.5.5 — Direct Discovery</p>
+        <p className="text-sm text-gray-400 font-medium tracking-tight">FundLens v1.7.0 — Advanced Wealth Intelligence</p>
       </div>
     </div>
   );

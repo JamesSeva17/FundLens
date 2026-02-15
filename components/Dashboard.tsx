@@ -1,8 +1,8 @@
-
 import React, { useMemo, useState } from 'react';
 import { AppData, PriceResponse } from '../types';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { getPortfolioInsights } from '../services/geminiService';
+import { trackEvent } from '../services/analyticsService';
 
 interface DashboardProps {
   data: AppData;
@@ -28,6 +28,10 @@ const Dashboard: React.FC<DashboardProps> = ({ data, prices, total }) => {
     e.preventDefault();
     setIsAnalyzing(true);
     setError(null);
+    
+    // Track Interaction
+    trackEvent('ai_manager_query', { query_length: userQuery.length });
+    
     try {
       const result = await getPortfolioInsights(data, prices, total, userQuery);
       setAnalysis(result);

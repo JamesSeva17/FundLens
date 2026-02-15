@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AppData, Asset, PriceResponse } from './types';
 import { loadLocal, saveToLocal, loadFromCloud } from './services/storageService';
 import { getPriceForAsset } from './services/priceService';
 import { getTradingViewLogo } from './services/logoService';
+import { initAnalytics, trackPageView } from './services/analyticsService';
 import Dashboard from './components/Dashboard';
 import Portfolio from './components/Portfolio';
 import Snapshots from './components/Snapshots';
@@ -15,8 +15,10 @@ const App: React.FC = () => {
   const [prices, setPrices] = useState<Record<string, PriceResponse>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // 1. Data Persistence: Load from cloud if enabled
+  // 1. Core Initialization
   useEffect(() => {
+    initAnalytics();
+
     if (data.cloudSyncEnabled && data.jsonBinKey && data.jsonBinId) {
       loadFromCloud(data.jsonBinKey, data.jsonBinId).then(cloudData => {
         if (cloudData) {
@@ -25,6 +27,11 @@ const App: React.FC = () => {
       });
     }
   }, []);
+
+  // Track page views on tab change
+  useEffect(() => {
+    trackPageView(activeTab);
+  }, [activeTab]);
 
   const updateData = useCallback((partial: Partial<AppData>) => {
     setData(prev => {
