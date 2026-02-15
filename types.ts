@@ -36,6 +36,7 @@ export interface AppData {
   assets: Asset[];
   snapshots: MonthlySnapshot[];
   platformIcons?: Record<string, string>;
+  assetIcons?: Record<string, string>; // Stores cached URLs for asset logos (e.g. { "GLO": "url" })
   cloudSyncEnabled: boolean;
   jsonBinKey?: string;
   jsonBinId?: string;

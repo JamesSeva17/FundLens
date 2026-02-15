@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AppData, Asset, PriceResponse } from './types';
 import { loadLocal, saveToLocal, loadFromCloud } from './services/storageService';
 import { getPriceForAsset } from './services/priceService';
+import { getTradingViewLogo } from './services/logoService';
 import Dashboard from './components/Dashboard';
 import Portfolio from './components/Portfolio';
 import Snapshots from './components/Snapshots';
@@ -33,7 +34,7 @@ const App: React.FC = () => {
     });
   }, []);
 
-  // 2. Price Sync Logic (with 1-min service-level caching)
+  // 2. Refresh Logic (Prices + Logos)
   const refreshPrices = useCallback(async (assetList?: Asset[]) => {
     const listToRefresh = assetList || data.assets;
     if (isRefreshing || listToRefresh.length === 0) return;
@@ -43,12 +44,20 @@ const App: React.FC = () => {
     try {
       const fetchPromises = listToRefresh.map(async (asset) => {
         try {
-          // Services (cryptoService/pseService) handle the 1-min TTL internally.
-          // They return cached data if fresh, or fetch from API if expired.
           const priceRes = await getPriceForAsset(asset);
+          
+          // Check if we need to discover the logo for this asset
+          const currentIcons = data.assetIcons || {};
+          if (asset.type === 'Stock' && !currentIcons[asset.ticker]) {
+             const logoUrl = await getTradingViewLogo(asset.ticker);
+             if (logoUrl) {
+                updateData({ assetIcons: { ...currentIcons, [asset.ticker]: logoUrl } });
+             }
+          }
+
           return priceRes;
         } catch (e) {
-          console.warn(`Failed to fetch price for ${asset.ticker}`, e);
+          console.warn(`Failed to sync ${asset.ticker}`, e);
           return null;
         }
       });
@@ -67,7 +76,7 @@ const App: React.FC = () => {
     } finally {
       setIsRefreshing(false);
     }
-  }, [data.assets, isRefreshing]);
+  }, [data.assets, data.assetIcons, isRefreshing, updateData]);
 
   // 3. Trigger Price Refresh on Mount
   useEffect(() => {

@@ -1,6 +1,8 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { AppData, Asset, PriceResponse, Platform, AssetType, Transaction } from '../types';
 import { getPriceForAsset } from '../services/priceService';
+import { getTradingViewLogo } from '../services/logoService';
 import AssetIcon from './AssetIcon';
 
 interface PortfolioProps {
@@ -135,13 +137,22 @@ const Portfolio: React.FC<PortfolioProps> = ({ data, prices, updateData, setPric
       fee: '0'
     }));
 
+    // Trigger Price & Logo sync for the new asset
     try {
-      const priceRes = await getPriceForAsset(activeAsset);
+      const pricePromise = getPriceForAsset(activeAsset);
+      const logoPromise = activeAsset.type === 'Stock' ? getTradingViewLogo(activeAsset.ticker) : Promise.resolve(null);
+      
+      const [priceRes, logoUrl] = await Promise.all([pricePromise, logoPromise]);
+      
       if (priceRes) {
         setPrices(prev => ({ ...prev, [tickerUpper]: priceRes }));
       }
+      if (logoUrl) {
+        const currentIcons = data.assetIcons || {};
+        updateData({ assetIcons: { ...currentIcons, [tickerUpper]: logoUrl } });
+      }
     } catch (err) {
-      console.error("Price retrieval failed during add:", err);
+      console.error("Discovery failed during add:", err);
     }
   };
 
@@ -266,7 +277,6 @@ const Portfolio: React.FC<PortfolioProps> = ({ data, prices, updateData, setPric
           {data.assets.length === 0 ? (
             <div className="px-6 py-16 text-center text-gray-300 font-black text-xs uppercase tracking-widest">No positions found</div>
           ) : (
-            // Fix: Explicitly cast Object.entries to fix "Property 'map' does not exist on type 'unknown'" error on platform items.
             (Object.entries(groupedAssets) as [string, any[]][]).sort(([pA], [pB]) => pA.localeCompare(pB)).map(([platform, items]) => (
               <React.Fragment key={platform}>
                 {/* Platform Section Header */}
@@ -279,6 +289,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ data, prices, updateData, setPric
                   const netGL = profit !== -Infinity ? profit : null;
                   const netGLPct = marketValue !== null && totalInvested > 0 ? (netGL! / totalInvested) * 100 : null;
                   const isExpanded = expandedAsset === asset.id;
+                  const cachedIcon = data.assetIcons?.[asset.ticker];
 
                   return (
                     <div key={asset.id} className="flex flex-col">
@@ -286,9 +297,9 @@ const Portfolio: React.FC<PortfolioProps> = ({ data, prices, updateData, setPric
                         className={`hover:bg-indigo-50/30 transition-all cursor-pointer grid grid-cols-4 items-center px-4 py-5 md:px-8 ${isExpanded ? 'bg-indigo-50/50' : ''}`}
                         onClick={() => setExpandedAsset(isExpanded ? null : asset.id)}
                       >
-                        {/* Col 1: Name, Platform, Cost */}
+                        {/* Col 1: Name, Cost */}
                         <div className="flex items-center gap-3">
-                          <AssetIcon symbol={asset.ticker} type={asset.type} customUrl={asset.iconUrl} size="sm" />
+                          <AssetIcon symbol={asset.ticker} type={asset.type} customUrl={cachedIcon || asset.iconUrl} size="sm" />
                           <div className="min-w-0">
                             <p className="font-black text-gray-900 leading-tight text-xs truncate">{asset.ticker}</p>
                             <p className="text-[8px] font-black text-gray-400 mt-1 uppercase tracking-tighter">
