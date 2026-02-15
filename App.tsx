@@ -156,10 +156,8 @@ const App: React.FC = () => {
   const lastUpdateLabel = useMemo(() => {
     const timestamps = Object.values(prices).map(p => new Date(p.retrieved_at).getTime());
     if (timestamps.length === 0) return null;
-    const latest = Math.max(...timestamps);
-    const diffMin = Math.round((Date.now() - latest) / 60000);
-    if (diffMin < 1) return 'Just now';
-    return `${diffMin}m ago`;
+    const latest = new Date(Math.max(...timestamps));
+    return latest.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }, [prices]);
 
   return (
