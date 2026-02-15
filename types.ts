@@ -7,6 +7,7 @@ export interface Transaction {
   units: number;
   price: number;
   fee: number;
+  feeIsUnit?: boolean; // If true, fee is subtracted from units. If false/undefined, fee is added to cost.
   date: string;
 }
 

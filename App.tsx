@@ -14,6 +14,7 @@ const App: React.FC = () => {
   const [prices, setPrices] = useState<Record<string, PriceResponse>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // 1. Data Persistence: Load from cloud if enabled
   useEffect(() => {
     if (data.cloudSyncEnabled && data.jsonBinKey && data.jsonBinId) {
       loadFromCloud(data.jsonBinKey, data.jsonBinId).then(cloudData => {
@@ -32,37 +33,53 @@ const App: React.FC = () => {
     });
   }, []);
 
-  const refreshPrices = useCallback(async () => {
-    if (isRefreshing) return;
+  // 2. Price Sync Logic (with 1-min service-level caching)
+  const refreshPrices = useCallback(async (assetList?: Asset[]) => {
+    const listToRefresh = assetList || data.assets;
+    if (isRefreshing || listToRefresh.length === 0) return;
+    
     setIsRefreshing(true);
     
     try {
-      const newPrices = { ...prices };
-      const fetchPromises = data.assets.map(async (asset) => {
+      const fetchPromises = listToRefresh.map(async (asset) => {
         try {
-          const priceRes = await getPriceForAsset(asset, prices);
-          if (priceRes) {
-            newPrices[asset.ticker] = priceRes;
-          }
+          // Services (cryptoService/pseService) handle the 1-min TTL internally.
+          // They return cached data if fresh, or fetch from API if expired.
+          const priceRes = await getPriceForAsset(asset);
+          return priceRes;
         } catch (e) {
           console.warn(`Failed to fetch price for ${asset.ticker}`, e);
+          return null;
         }
       });
 
-      await Promise.all(fetchPromises);
-      setPrices(newPrices);
+      const results = await Promise.all(fetchPromises);
+      
+      setPrices(prev => {
+        const next = { ...prev };
+        results.forEach(res => {
+          if (res) next[res.asset] = res;
+        });
+        return next;
+      });
     } catch (error) {
       console.error("Refresh failed:", error);
     } finally {
       setIsRefreshing(false);
     }
-  }, [data.assets, prices, isRefreshing]);
+  }, [data.assets, isRefreshing]);
+
+  // 3. Trigger Price Refresh on Mount
+  useEffect(() => {
+    refreshPrices();
+  }, []); // Only run once on mount
 
   const currentNetWorth = useMemo(() => {
     const assetsValue = data.assets.reduce((sum, asset) => {
       const price = prices[asset.ticker]?.price_php || 0;
-      const totalUnits = asset.transactions.reduce((tsum, t) => tsum + t.units, 0);
-      return sum + (totalUnits * price);
+      // Use Net Units (Gross - Asset Fees)
+      const netUnits = asset.transactions.reduce((tsum, t) => tsum + (t.units - (t.feeIsUnit ? t.fee : 0)), 0);
+      return sum + (netUnits * price);
     }, 0);
 
     const latestSnapshot = [...data.snapshots].sort((a, b) => b.date.localeCompare(a.date))[0];
@@ -73,7 +90,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
-      {/* Mobile Top Branding Bar - Text Only */}
       <div className="md:hidden bg-white border-b border-gray-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm">
         <div>
           <h1 className="text-xl font-black text-indigo-900 leading-none tracking-tight">FundLens</h1>
@@ -85,13 +101,11 @@ const App: React.FC = () => {
       </div>
 
       <nav className="w-full md:w-64 bg-indigo-900 text-white flex md:flex-col fixed bottom-0 md:sticky md:top-0 md:h-screen z-50 shrink-0 shadow-[0_-10px_25px_-5px_rgba(0,0,0,0.3)] md:shadow-none border-t border-indigo-800 md:border-t-0">
-        {/* Desktop Branding - Text Only */}
         <div className="p-8 hidden md:block">
           <h1 className="text-2xl font-black tracking-tight text-white">FundLens</h1>
           <p className="text-indigo-300 text-[10px] uppercase font-black tracking-widest mt-1">Wealth Tracker</p>
         </div>
         
-        {/* Navigation Buttons */}
         <div className="flex-1 grid grid-cols-4 md:flex md:flex-col">
           {[
             { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-pie' },
@@ -118,36 +132,26 @@ const App: React.FC = () => {
       </nav>
 
       <main className="flex-1 p-4 md:p-8 bg-gray-50 overflow-y-auto mb-20 md:mb-0">
-        {/* Global Header */}
-        {activeTab !== 'snapshots' && (
-          <header className="flex flex-col md:flex-row md:items-center justify-between mb-6 md:mb-8 gap-4">
-            <div className="px-1">
-              <h2 className="text-3xl font-black text-gray-900 tracking-tight">
-                {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
-              </h2>
+        <header className="flex flex-col md:flex-row md:items-center justify-between mb-6 md:mb-8 gap-4">
+          <div className="px-1">
+            <h2 className="text-3xl font-black text-gray-900 tracking-tight">
+              {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+            </h2>
+          </div>
+          
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex gap-2">
+              <button 
+                onClick={() => refreshPrices()}
+                disabled={isRefreshing}
+                className="bg-white border border-gray-200 text-gray-900 px-6 py-3 rounded-2xl shadow-sm hover:shadow-md disabled:opacity-50 transition-all text-xs font-black uppercase tracking-widest"
+              >
+                <i className={`fas fa-sync-alt mr-2 ${isRefreshing ? 'animate-spin' : ''}`}></i>
+                {isRefreshing ? 'Syncing...' : 'Get Latest price'}
+              </button>
             </div>
-            
-            <div className="flex flex-col items-end gap-2">
-              <div className="flex gap-2">
-                {activeTab === 'portfolio' && (
-                  <button 
-                    onClick={refreshPrices}
-                    disabled={isRefreshing}
-                    className="bg-white border border-gray-200 text-gray-900 px-6 py-3 rounded-2xl shadow-sm hover:shadow-md disabled:opacity-50 transition-all text-xs font-black uppercase tracking-widest"
-                  >
-                    <i className={`fas fa-sync-alt mr-2 ${isRefreshing ? 'animate-spin' : ''}`}></i>
-                    {isRefreshing ? 'Syncing...' : 'Get Latest price'}
-                  </button>
-                )}
-              </div>
-              {isRefreshing && activeTab === 'portfolio' && (
-                <span className="text-[9px] text-indigo-500 font-bold animate-pulse">
-                  Market Sync Active...
-                </span>
-              )}
-            </div>
-          </header>
-        )}
+          </div>
+        </header>
 
         <div className="max-w-7xl mx-auto">
           {activeTab === 'dashboard' && (

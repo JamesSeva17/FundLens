@@ -121,7 +121,8 @@ const Snapshots: React.FC<SnapshotsProps> = ({ data, updateData }) => {
 
   const itemSummaries = useMemo(() => {
     const sortedSnapshots = [...data.snapshots].sort((a, b) => a.date.localeCompare(b.date));
-    const uniqueItems = Array.from(new Set(data.snapshots.flatMap(s => s.platforms.map(p => p.name))));
+    // Fix: Explicitly type uniqueItems as string[] to prevent 'unknown' type inference in index operations.
+    const uniqueItems: string[] = Array.from(new Set(data.snapshots.flatMap(s => s.platforms.map(p => p.name))));
 
     return uniqueItems.map(name => {
       const history = sortedSnapshots

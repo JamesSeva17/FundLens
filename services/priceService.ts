@@ -6,8 +6,9 @@ import { fetchCryptoPrice } from "./cryptoService";
 /**
  * The single source of truth for fetching prices.
  * Routes based on asset type to specific direct-data providers.
+ * Both sub-services handle 1-minute in-memory caching internally.
  */
-export async function getPriceForAsset(asset: Asset, existingPrices: Record<string, PriceResponse> = {}): Promise<PriceResponse | null> {
+export async function getPriceForAsset(asset: Asset): Promise<PriceResponse | null> {
   const type = asset.type;
   
   if (type === 'Stock') {
