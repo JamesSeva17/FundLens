@@ -8,9 +8,10 @@ interface DashboardProps {
   data: AppData;
   prices: Record<string, PriceResponse>;
   total: number;
+  onNavigate: (tab: 'portfolio' | 'snapshots' | 'settings') => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ data, prices, total }) => {
+const Dashboard: React.FC<DashboardProps> = ({ data, prices, total, onNavigate }) => {
   const [userQuery, setUserQuery] = useState('');
   const [analysis, setAnalysis] = useState<{ text: string; sources?: { title: string; uri: string }[] } | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -89,21 +90,37 @@ const Dashboard: React.FC<DashboardProps> = ({ data, prices, total }) => {
           <p className="text-xs text-gray-400 mt-2">Combined Assets & Savings</p>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <p className="text-sm font-medium text-gray-500 mb-1">Portfolio Allocation</p>
-          <h3 className="text-2xl font-bold text-gray-900">
-            ₱{portfolioValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-          </h3>
+        <button 
+          onClick={() => onNavigate('portfolio')}
+          className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-left hover:border-indigo-200 hover:shadow-md transition-all group active:scale-[0.98]"
+        >
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-sm font-medium text-gray-500 mb-1">Portfolio Allocation</p>
+              <h3 className="text-2xl font-bold text-gray-900">
+                ₱{portfolioValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </h3>
+            </div>
+            <i className="fas fa-arrow-right text-indigo-200 group-hover:text-indigo-500 transition-colors mt-1"></i>
+          </div>
           <p className="text-xs text-gray-400 mt-2">{data.assets.length} Active Positions</p>
-        </div>
+        </button>
 
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <p className="text-sm font-medium text-gray-500 mb-1">Available Savings</p>
-          <h3 className="text-2xl font-bold text-indigo-600">
-            ₱{(total - portfolioValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-          </h3>
+        <button 
+          onClick={() => onNavigate('snapshots')}
+          className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-left hover:border-indigo-200 hover:shadow-md transition-all group active:scale-[0.98]"
+        >
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-sm font-medium text-gray-500 mb-1">Available Savings</p>
+              <h3 className="text-2xl font-bold text-indigo-600">
+                ₱{(total - portfolioValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </h3>
+            </div>
+            <i className="fas fa-arrow-right text-indigo-200 group-hover:text-indigo-600 transition-colors mt-1"></i>
+          </div>
           <p className="text-xs text-gray-400 mt-2">Banks, Cash & E-Wallets</p>
-        </div>
+        </button>
       </div>
 
       {/* Interactive AI Fund Manager */}

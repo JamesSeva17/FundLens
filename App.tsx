@@ -9,10 +9,15 @@ import Portfolio from './components/Portfolio';
 import Snapshots from './components/Snapshots';
 import Settings from './components/Settings';
 
+const PRICE_CACHE_KEY = 'fundlens_price_cache';
+
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'portfolio' | 'snapshots' | 'settings'>('dashboard');
   const [data, setData] = useState<AppData>(loadLocal());
-  const [prices, setPrices] = useState<Record<string, PriceResponse>>({});
+  const [prices, setPrices] = useState<Record<string, PriceResponse>>(() => {
+    const cached = localStorage.getItem(PRICE_CACHE_KEY);
+    return cached ? JSON.parse(cached) : {};
+  });
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // 1. Core Initialization
@@ -27,6 +32,11 @@ const App: React.FC = () => {
       });
     }
   }, []);
+
+  // Save prices to local storage for persistence across refreshes
+  useEffect(() => {
+    localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify(prices));
+  }, [prices]);
 
   // Track page views on tab change
   useEffect(() => {
@@ -85,10 +95,10 @@ const App: React.FC = () => {
     }
   }, [data.assets, data.assetIcons, isRefreshing, updateData]);
 
-  // 3. Trigger Price Refresh on Mount
+  // 3. Trigger Price Refresh on Mount if cache is old or empty
   useEffect(() => {
     refreshPrices();
-  }, []); // Only run once on mount
+  }, []); 
 
   const currentNetWorth = useMemo(() => {
     const assetsValue = data.assets.reduce((sum, asset) => {
@@ -175,6 +185,7 @@ const App: React.FC = () => {
               data={data} 
               prices={prices} 
               total={currentNetWorth} 
+              onNavigate={(tab) => setActiveTab(tab)}
             />
           )}
           {activeTab === 'portfolio' && <Portfolio data={data} prices={prices} updateData={updateData} setPrices={setPrices} />}
