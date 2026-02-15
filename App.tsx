@@ -84,6 +84,7 @@ const App: React.FC = () => {
     
     setIsRefreshing(true);
     
+    // If manual, immediately set the cooldown to prevent double-clicks
     if (isManual) {
       const now = Date.now();
       setLastManualSync(now);
@@ -91,6 +92,7 @@ const App: React.FC = () => {
     }
     
     try {
+      // Map all assets to their price fetch promises
       const fetchPromises = listToRefresh.map(async (asset) => {
         try {
           const priceRes = await getPriceForAsset(asset);
@@ -122,7 +124,7 @@ const App: React.FC = () => {
       });
 
       if (isManual) {
-        setSyncNotice("Prices successfully updated.");
+        setSyncNotice("Prices refreshed from live sources.");
         setTimeout(() => setSyncNotice(null), 3000);
       }
     } catch (error) {
@@ -150,6 +152,15 @@ const App: React.FC = () => {
 
     return assetsValue + snapshotValue;
   }, [data.assets, data.snapshots, prices]);
+
+  const lastUpdateLabel = useMemo(() => {
+    const timestamps = Object.values(prices).map(p => new Date(p.retrieved_at).getTime());
+    if (timestamps.length === 0) return null;
+    const latest = Math.max(...timestamps);
+    const diffMin = Math.round((Date.now() - latest) / 60000);
+    if (diffMin < 1) return 'Just now';
+    return `${diffMin}m ago`;
+  }, [prices]);
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
@@ -218,16 +229,23 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex flex-col items-end gap-2">
-            <div className="flex gap-2">
+            <div className="flex flex-col items-end gap-1.5">
               {activeTab !== 'savings' && (
-                <button 
-                  onClick={() => refreshPrices(undefined, true)}
-                  disabled={isRefreshing || remainingCooldown > 0}
-                  className="bg-white border border-gray-200 text-gray-900 px-6 py-3 rounded-2xl shadow-sm hover:shadow-md disabled:opacity-50 transition-all text-xs font-black uppercase tracking-widest min-w-[160px]"
-                >
-                  <i className={`fas fa-sync-alt mr-2 ${isRefreshing ? 'animate-spin' : ''}`}></i>
-                  {isRefreshing ? 'Syncing...' : remainingCooldown > 0 ? `Sync in ${remainingCooldown}s` : 'Sync Prices'}
-                </button>
+                <>
+                  <button 
+                    onClick={() => refreshPrices(undefined, true)}
+                    disabled={isRefreshing || remainingCooldown > 0}
+                    className="bg-white border border-gray-200 text-gray-900 px-6 py-3 rounded-2xl shadow-sm hover:shadow-md disabled:opacity-50 transition-all text-xs font-black uppercase tracking-widest min-w-[170px]"
+                  >
+                    <i className={`fas fa-sync-alt mr-2 ${isRefreshing ? 'animate-spin' : ''}`}></i>
+                    {isRefreshing ? 'Syncing...' : remainingCooldown > 0 ? `Sync in ${remainingCooldown}s` : 'Sync Prices'}
+                  </button>
+                  {lastUpdateLabel && (
+                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mr-2">
+                      Last Update: {lastUpdateLabel}
+                    </span>
+                  )}
+                </>
               )}
             </div>
           </div>

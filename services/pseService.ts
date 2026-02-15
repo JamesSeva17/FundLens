@@ -19,12 +19,12 @@ async function getCompanyId(symbol: string): Promise<string | null> {
   if (COMPANY_ID_CACHE[ticker]) return COMPANY_ID_CACHE[ticker];
 
   try {
-    const targetUrl = `https://edge.pse.com.ph/autoComplete/searchCompanyNameSymbol.ax?term=${encodeURIComponent(ticker)}`;
+    // Add cache buster to ID search as well
+    const targetUrl = `https://edge.pse.com.ph/autoComplete/searchCompanyNameSymbol.ax?term=${encodeURIComponent(ticker)}&_t=${Date.now()}`;
     const response = await fetch(`${PROXY_URL}${encodeURIComponent(targetUrl)}`);
     
     if (!response.ok) throw new Error(`Network Error: ${response.status}`);
     
-    // corsproxy.io returns the raw response directly, no need for JSON wrapper.contents
     const data = await response.json();
 
     // Look for exact symbol match
@@ -45,12 +45,12 @@ async function getCompanyId(symbol: string): Promise<string | null> {
 
 async function getLastTradedPrice(companyId: string): Promise<string | null> {
   try {
-    const targetUrl = `https://edge.pse.com.ph/companyPage/stockData.do?cmpy_id=${companyId}`;
+    // CRITICAL: Added timestamp cache buster to bypass proxy caching
+    const targetUrl = `https://edge.pse.com.ph/companyPage/stockData.do?cmpy_id=${companyId}&_t=${Date.now()}`;
     const response = await fetch(`${PROXY_URL}${encodeURIComponent(targetUrl)}`);
     
     if (!response.ok) throw new Error(`Network Error: ${response.status}`);
     
-    // corsproxy.io returns raw HTML text directly
     const html = await response.text();
 
     const parser = new DOMParser();

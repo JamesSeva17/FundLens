@@ -8,7 +8,6 @@ const CACHE_TTL_MS = 60 * 1000; // 1 minute price cache
 
 /**
  * Fetches crypto price from CoinGecko using the 'symbols' parameter.
- * This utilizes a direct symbol-to-price lookup, bypassing the need to resolve IDs first.
  */
 export async function fetchCryptoPrice(symbol: string): Promise<PriceResponse | null> {
   const ticker = symbol.toLowerCase().trim();
@@ -20,29 +19,26 @@ export async function fetchCryptoPrice(symbol: string): Promise<PriceResponse | 
     if (age < CACHE_TTL_MS) return cached;
   }
 
-  // 2. Request Collapsing (prevent multiple simultaneous requests for the same symbol)
+  // 2. Request Collapsing
   if (PENDING_REQUESTS[ticker]) return PENDING_REQUESTS[ticker];
 
   const fetchAction = (async () => {
     try {
-      // Using the 'symbols' query parameter allows fetching by ticker directly (e.g., 'btc', 'eth')
-      // Note: This returns an array of market data objects.
-      const url = `${COINGECKO_BASE}/coins/markets?vs_currency=php&symbols=${ticker}`;
+      // CRITICAL: Added timestamp to skip cached responses from proxies
+      const url = `${COINGECKO_BASE}/coins/markets?vs_currency=php&symbols=${ticker}&_t=${Date.now()}`;
       const res = await fetch(url);
       
       if (!res.ok) {
-        if (res.status === 429) console.warn("CoinGecko: Rate limit reached. Using cached data if available.");
+        if (res.status === 429) console.warn("CoinGecko: Rate limit reached.");
         return null;
       }
       
       const data = await res.json();
       
       if (!Array.isArray(data) || data.length === 0) {
-        console.warn(`Crypto Scraper: No market data found for symbol: ${ticker.toUpperCase()}`);
         return null;
       }
 
-      // CoinGecko might return multiple matches (rare for symbols), we take the most relevant one
       const marketData = data.find((c: any) => c.symbol.toLowerCase() === ticker) || data[0];
       const price = marketData.current_price;
 
@@ -57,7 +53,6 @@ export async function fetchCryptoPrice(symbol: string): Promise<PriceResponse | 
         retrieved_at: new Date().toISOString()
       };
 
-      // Update cache
       PRICE_CACHE[ticker.toUpperCase()] = result;
       return result;
     } catch (err) {
